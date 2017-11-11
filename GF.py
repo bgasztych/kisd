@@ -59,21 +59,30 @@ class GFSimple:
     @staticmethod
     def get_generators(p):
         res = []
+        exp = [None] * (p - 1)
 
-        for i in range(2, p-1):
+        for i in range(2, p - 1):
             start = 1
             flag = True
 
-            for j in range(0, p//2):
+            j = 0
+            for j in range(0, (p - 1) // 2):
                 start = (start * i) % p
+                exp[j] = start
                 if (start % p) == 1:
                     flag = False
                     break
             if flag:
-                res.append(i)
-
-        return res
+                for k in range(j + 1, (p - 1)):
+                    start = (start * i) % p
+                    exp[k] = start
+                # print("exp: %s" % exp)
+                for m in range(1, p - 1):
+                    b, _, __ = Utils.Utils.egcd(m, p - 1)
+                    if b == 1:
+                        res.append(exp[m - 1])
+                return sorted(res)
 
     @staticmethod
     def get_generators_amount(p):
-        return Utils.Utils.euler_totient(p-1)
+        return Utils.Utils.euler_totient(p - 1)

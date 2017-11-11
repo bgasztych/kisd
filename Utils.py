@@ -1,5 +1,4 @@
 import random
-import math
 from functools import reduce
 from operator import mul, mod
 
@@ -108,7 +107,8 @@ class Utils:
         amount = 0
 
         for k in range(1, p + 1):
-            if math.gcd(p, k) == 1:
+            b, _, __ = Utils.egcd(p, k)
+            if b == 1:
                 amount += 1
 
         return amount
