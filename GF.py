@@ -121,7 +121,7 @@ class GFExtended:
 
     @staticmethod
     def generate_sequence(generator):
-        gfe_size = 2**(len(generator) - 1)
+        gfe_size = 2 ** (len(generator) - 1)
         power = GFExtended.get_biggest_power(generator)
         s_array = []
 
@@ -146,7 +146,11 @@ class GFExtended:
 
     @staticmethod
     def get_all_elements(m):
-        out = [[None]] * ((2**m) - 1)
-        print(out)
+        out = []
+        generator = [1, 1, 0, 1]  # TODO find_generators_method
+        sequence = GFExtended.generate_sequence(generator)
 
-
+        # Tworzenie z sekwencji kolejnych elementów ciała
+        for i in range(0, len(sequence), m):
+            out.append(GFExtended(m, sequence[i:i+m]))
+        return out

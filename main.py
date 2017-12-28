@@ -27,7 +27,9 @@ def main():
 
     # gfe = GF.GFExtended(5, [1, 0, 1, 0, 1])
     # print(gfe)
-    GF.GFExtended.generate_sequence([1, 1, 0, 1])
+    elements = GF.GFExtended.get_all_elements(3)
+    for e in elements:
+        print(e)
 
 
 if __name__ == "__main__":
