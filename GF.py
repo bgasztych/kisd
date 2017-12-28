@@ -9,7 +9,7 @@ class GFSimple:
                 self.__value = value
                 self.__p = p
             else:
-                raise ValueError("value must be >=0 and p must be > 0 and value must <p and p must be prime")
+                raise ValueError("value must be >=0 and p must be > 0 and value must < p and p must be prime")
 
         else:
             raise TypeError("value and p must be integers")
@@ -31,7 +31,7 @@ class GFSimple:
             else:
                 raise ValueError("p must be equal")
         else:
-            raise TypeError("argument must be GF type")
+            raise TypeError("argument must be GFSimple type")
 
     def __mul__(self, other):
         if isinstance(other, GFSimple):
@@ -42,7 +42,7 @@ class GFSimple:
             else:
                 raise ValueError("p must be equal")
         else:
-            raise TypeError("argument must be GF type")
+            raise TypeError("argument must be GFSimple type")
 
     def __invert__(self):
         g, x, _ = Utils.Utils.egcd(self.__value, self.__p)
@@ -89,6 +89,7 @@ class GFSimple:
 
 
 class GFExtended:
+    generators = [[], [], [1, 1, 1], [1, 1, 0, 1], [1, 1, 0, 0, 1], [1, 0, 1, 0, 0, 1]]
 
     def __init__(self, m, element):
         if m == len(element):
@@ -111,6 +112,47 @@ class GFExtended:
                 else:
                     out += " + " + value_str
         return out
+
+    def __add__(self, other):
+        if isinstance(other, GFExtended):
+            if self.m == other.m:
+                result = []
+                for i in range(0, len(self.element)):
+                    gfs1 = GFSimple(self.element[i], 2)
+                    gfs2 = GFSimple(other.element[i], 2)
+                    gfs_result = gfs1 + gfs2
+                    result.append(gfs_result.value)
+                return GFExtended(self.m, result)
+            else:
+                raise ValueError("m must be equal")
+        else:
+            raise TypeError("argument must be GFExtended type")
+
+    def __mul__(self, other):
+        if isinstance(other, GFExtended):
+            if self.m == other.m:
+                result = [0] * (len(self.element) * 2 + 1)
+                for i in range(len(self.element) - 1, -1, -1):
+                    for j in range(len(other.element) - 1, -1, -1):
+                        gfs1 = GFSimple(self.element[i], 2)
+                        gfs2 = GFSimple(other.element[j], 2)
+                        gfs_result = gfs1 * gfs2
+                        if gfs_result.value > 0:
+                            power = i + j
+                            gfs2 = GFSimple(result[power], 2)
+                            gfs_result2 = gfs2 + gfs_result
+                            result[power] = gfs_result2.value
+                return result
+            else:
+                raise ValueError("m must be equal")
+        else:
+            raise TypeError("argument must be GFExtended type")
+
+    def __invert__(self):
+        result = []
+        for i in range(len(self.element) - 1, -1, -1):
+            result.append(self.element[i])
+        return GFExtended(self.m, result)
 
     @staticmethod
     def get_biggest_power(poly):
@@ -147,10 +189,10 @@ class GFExtended:
     @staticmethod
     def get_all_elements(m):
         out = []
-        generator = [1, 1, 0, 1]  # TODO find_generators_method
+        generator = GFExtended.generators[m]
         sequence = GFExtended.generate_sequence(generator)
 
         # Tworzenie z sekwencji kolejnych elementów ciała
         for i in range(0, len(sequence), m):
-            out.append(GFExtended(m, sequence[i:i+m]))
+            out.append(GFExtended(m, sequence[i:i + m]))
         return out
