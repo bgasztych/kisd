@@ -86,3 +86,67 @@ class GFSimple:
     @staticmethod
     def get_generators_amount(p):
         return Utils.Utils.euler_totient(p - 1)
+
+
+class GFExtended:
+
+    def __init__(self, m, element):
+        if m == len(element):
+            self.m = m
+            self.element = element
+        else:
+            raise ValueError("m must be equal element size")
+
+    def __str__(self):
+        out = ""
+        for i in range(len(self.element) - 1, -1, -1):
+            if self.element[i] != 0:
+                value_str = "x^" + str(i)
+                if i == 0:
+                    value_str = "1"
+                elif i == 1:
+                    value_str = "x"
+                if len(out) == 0:
+                    out = value_str
+                else:
+                    out += " + " + value_str
+        return out
+
+    @staticmethod
+    def get_biggest_power(poly):
+        for i in range(len(poly) - 1, -1, -1):
+            if poly[i] == 1:
+                return i
+        return None
+
+    @staticmethod
+    def generate_sequence(generator):
+        gfe_size = 2**(len(generator) - 1)
+        power = GFExtended.get_biggest_power(generator)
+        s_array = []
+
+        # Wypełnienie tablicy s indeksami poteg z generatora
+        for i in range(power):
+            if generator[i] != 0:
+                s_array.append(i)
+
+        # Wypełnienie sekwencji ciągiem początkowym
+        sequence = [None] * ((gfe_size - 1) * power)
+        sequence[0] = 1
+        for i in range(1, power):
+            sequence[i] = 0
+
+        # Dodawanie elementów sekwencji zgodnie ze wzorem rekurencyjnym
+        for i in range(power, len(sequence)):
+            gfs = GFSimple(0, 2)
+            for j in range(len(s_array)):
+                gfs += GFSimple(sequence[i - power + s_array[j]], 2)
+            sequence[i] = gfs.value
+        return sequence
+
+    @staticmethod
+    def get_all_elements(m):
+        out = [[None]] * ((2**m) - 1)
+        print(out)
+
+
