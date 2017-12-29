@@ -2,6 +2,8 @@ import random
 from functools import reduce
 from operator import mul, mod
 
+import GF
+
 
 class Utils:
 
@@ -44,14 +46,21 @@ class Utils:
         # than rabinMiller(), but unlike rabinMiller() is not guaranteed to
         # prove that a number is prime.
         low_primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
-                     101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197,
-                     199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313,
-                     317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433, 439,
-                     443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571,
-                     577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691,
-                     701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811, 821, 823, 827, 829,
-                     839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977,
-                     983, 991, 997]
+                      101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193,
+                      197,
+                      199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311,
+                      313,
+                      317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433,
+                      439,
+                      443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569,
+                      571,
+                      577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683,
+                      691,
+                      701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811, 821, 823, 827,
+                      829,
+                      839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971,
+                      977,
+                      983, 991, 997]
 
         if num in low_primes:
             return True
@@ -112,3 +121,112 @@ class Utils:
                 amount += 1
 
         return amount
+
+    @staticmethod
+    def get_biggest_power(poly):
+        for i in range(len(poly) - 1, -1, -1):
+            if poly[i] == 1:
+                return i
+        return None
+
+    @staticmethod
+    def divide_with_remainder(dividend, divider):
+        biggest_dividend_power = Utils.get_biggest_power(dividend)
+        biggest_divider_power = Utils.get_biggest_power(divider)
+
+        # Jeśli dzielnik mniejszy od dzielnej lub równy 0 nie trzeba dzielić
+        if biggest_dividend_power < biggest_divider_power or (
+                biggest_dividend_power >= 1 and biggest_divider_power == 0):
+            return [[0], dividend]
+
+        max_power = max(biggest_dividend_power, biggest_divider_power)
+        result = [[0] * max_power] * 2
+        new_dividend = list(dividend)
+        while True:
+            i = len(new_dividend) - 1
+            while new_dividend[i] == 0 and i > 0:
+                i -= 1
+            if i < 0:
+                return result
+
+            # Dzielenie przez najwyższą potęgę dzielnej
+            current_power = i - biggest_divider_power
+
+            # Jeśli potęga mniejsza od zera to koniec dzielenia
+            if current_power < 0:
+                if i == 0:
+                    return [dividend, [0] * max_power]
+                else:
+                    return result
+
+            # Dzielenie największego wyrazu dzielnej przez największy wyraz dzielnika
+            div_result = [0] * (current_power + 1)
+            gfs1 = GF.GFSimple(new_dividend[i], 2)
+            gfs2 = GF.GFSimple(divider[biggest_divider_power], 2)
+            gfs_result = gfs1 * (~gfs2)
+            div_result[current_power] = gfs_result.value
+
+            # Dodanie wyniku dzielenia do result
+            result[0] = Utils.add_polynomials(result[0], div_result)
+
+            # Mnożenie dzielnika przez wynik dzielenia
+            subtrahend = Utils.mul_polynomials(divider, div_result)
+
+            # Odejmowanie wymnożonej wartości od dzielnej
+            new_dividend = Utils.sub_polynomials(new_dividend, subtrahend)
+
+            # Zwrócenie wyniku jeśli nie można dalej dzielić
+            if Utils.get_biggest_power(new_dividend) < biggest_divider_power:
+                result[1] = new_dividend
+                return result
+
+    @staticmethod
+    def add_polynomials(poly1, poly2):
+        if len(poly1) >= len(poly2):
+            for i in range(0, len(poly2)):
+                gfs1 = GF.GFSimple(poly1[i], 2)
+                gfs2 = GF.GFSimple(poly2[i], 2)
+                gfs_result = gfs1 + gfs2
+                poly1[i] = gfs_result.value
+            return poly1
+        else:
+            for i in range(0, len(poly1)):
+                gfs1 = GF.GFSimple(poly1[i], 2)
+                gfs2 = GF.GFSimple(poly2[i], 2)
+                gfs_result = gfs1 + gfs2
+                poly2[i] = gfs_result.value
+            return poly2
+
+    @staticmethod
+    def sub_polynomials(poly1, poly2):
+        if len(poly1) >= len(poly2):
+            for i in range(0, len(poly2)):
+                gfs1 = GF.GFSimple(poly1[i], 2)
+                gfs2 = GF.GFSimple(poly2[i], 2)
+                gfs_result = gfs1 + (~gfs2)
+                poly1[i] = gfs_result.value
+            return poly1
+        else:
+            for i in range(0, len(poly1)):
+                gfs1 = GF.GFSimple(poly1[i], 2)
+                gfs2 = GF.GFSimple(poly2[i], 2)
+                gfs_result = gfs1 + (~gfs2)
+                poly2[i] = gfs_result.value
+            return poly2
+
+    @staticmethod
+    def mul_polynomials(poly1, poly2):
+        max_power = Utils.get_biggest_power(poly1) + Utils.get_biggest_power(poly2)
+
+        mul_result = [0] * (max_power + 1)
+        for i in range(len(poly1) - 1, -1, -1):
+            for j in range(len(poly2) - 1, -1, -1):
+                gfs1 = GF.GFSimple(poly1[i], 2)
+                gfs2 = GF.GFSimple(poly2[j], 2)
+                gfs_mul_result = gfs1 * gfs2
+                if gfs_mul_result.value > 0:
+                    power = i + j
+                    gfs3 = GF.GFSimple(mul_result[power], 2)
+                    gfs_add_result = gfs3 + gfs_mul_result
+                    mul_result[power] = gfs_add_result.value
+        return mul_result

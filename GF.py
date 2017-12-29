@@ -51,7 +51,7 @@ class GFSimple:
             p = self.__p
             return GFSimple(value, p)
         else:
-            return None
+            return self
 
     def __str__(self):
         return "Value= %d p= %d" % (self.__value, self.__p)
@@ -128,21 +128,41 @@ class GFExtended:
         else:
             raise TypeError("argument must be GFExtended type")
 
+    def __sub__(self, other):
+        if isinstance(other, GFExtended):
+            if self.m == other.m:
+                result = []
+                for i in range(0, len(self.element)):
+                    gfs1 = GFSimple(self.element[i], 2)
+                    gfs2 = GFSimple(other.element[i], 2)
+                    gfs_result = gfs1 - gfs2
+                    result.append(gfs_result.value)
+                return GFExtended(self.m, result)
+            else:
+                raise ValueError("m must be equal")
+        else:
+            raise TypeError("argument must be GFExtended type")
+
     def __mul__(self, other):
         if isinstance(other, GFExtended):
             if self.m == other.m:
-                result = [0] * (len(self.element) * 2 + 1)
+
+                # Multiple polynomials
+                mul_result = [0] * (len(self.element) * 2 + 1)
                 for i in range(len(self.element) - 1, -1, -1):
                     for j in range(len(other.element) - 1, -1, -1):
                         gfs1 = GFSimple(self.element[i], 2)
                         gfs2 = GFSimple(other.element[j], 2)
-                        gfs_result = gfs1 * gfs2
-                        if gfs_result.value > 0:
+                        gfs_mul_result = gfs1 * gfs2
+                        if gfs_mul_result.value > 0:
                             power = i + j
-                            gfs2 = GFSimple(result[power], 2)
-                            gfs_result2 = gfs2 + gfs_result
-                            result[power] = gfs_result2.value
-                return result
+                            gfs3 = GFSimple(mul_result[power], 2)
+                            gfs_add_result = gfs3 + gfs_mul_result
+                            mul_result[power] = gfs_add_result.value
+
+                # Divide multiplied polynomial with generator, remainder will be the final result
+                div_result, remainder = Utils.Utils.divide_with_remainder(mul_result, GFExtended.generators[self.m])
+                return GFExtended(self.m, remainder[0:self.m])
             else:
                 raise ValueError("m must be equal")
         else:
@@ -155,16 +175,9 @@ class GFExtended:
         return GFExtended(self.m, result)
 
     @staticmethod
-    def get_biggest_power(poly):
-        for i in range(len(poly) - 1, -1, -1):
-            if poly[i] == 1:
-                return i
-        return None
-
-    @staticmethod
     def generate_sequence(generator):
         gfe_size = 2 ** (len(generator) - 1)
-        power = GFExtended.get_biggest_power(generator)
+        power = Utils.Utils.get_biggest_power(generator)
         s_array = []
 
         # Wypełnienie tablicy s indeksami poteg z generatora
@@ -196,3 +209,4 @@ class GFExtended:
         for i in range(0, len(sequence), m):
             out.append(GFExtended(m, sequence[i:i + m]))
         return out
+

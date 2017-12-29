@@ -25,17 +25,19 @@ def main():
     #
     # print("Chinese remainder theorem: %d" % Utils.Utils.crt(a, m))
 
-    # gfe = GF.GFExtended(5, [1, 0, 1, 0, 1])
-    # print(gfe)
-    # elements = GF.GFExtended.get_all_elements(3)
-    # for e in elements:
-    #     print(e)
-    # gfe1 = GF.GFExtended(3, [1, 0, 1])
-    # gfe2 = GF.GFExtended(3, [1, 1, 1])
-    # print(gfe1 * gfe2)
-    gfe1 = GF.GFExtended(3, [1, 0, 0])
-    print(gfe1)
-    print(~gfe1)
+    print("=====Galois Field Extended=====")
+    gfe1 = GF.GFExtended(3, [1, 1, 0])
+    gfe2 = GF.GFExtended(3, [1, 1, 1])
+    print("GFE1: %s\nGFE2: %s" % (gfe1, gfe2))
+    print("Sum: %s" % (gfe1 + gfe2))
+    print("Mul: %s" % (gfe1 * gfe2))
+    print("Invert gf1: %s" % (~gfe1))
+    print("Invert gf2: %s" % (~gfe2))
+
+    print("\nAll elements GF(2^3):")
+    elements = GF.GFExtended.get_all_elements(3)
+    for e in elements:
+        print(e)
 
 
 if __name__ == "__main__":
