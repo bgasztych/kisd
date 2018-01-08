@@ -128,21 +128,6 @@ class GFExtended:
         else:
             raise TypeError("argument must be GFExtended type")
 
-    def __sub__(self, other):
-        if isinstance(other, GFExtended):
-            if self.m == other.m:
-                result = []
-                for i in range(0, len(self.element)):
-                    gfs1 = GFSimple(self.element[i], 2)
-                    gfs2 = GFSimple(other.element[i], 2)
-                    gfs_result = gfs1 - gfs2
-                    result.append(gfs_result.value)
-                return GFExtended(self.m, result)
-            else:
-                raise ValueError("m must be equal")
-        else:
-            raise TypeError("argument must be GFExtended type")
-
     def __mul__(self, other):
         if isinstance(other, GFExtended):
             if self.m == other.m:
