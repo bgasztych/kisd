@@ -1,4 +1,5 @@
 import math
+import random
 
 gf_exp = [0] * 512  # Create list of 512 elements. In Python 2.6+, consider using bytearray
 gf_log = [0] * 256
@@ -255,7 +256,7 @@ class RS:
         self.n = n
         self.k = k
         self.r = self.n - self.k
-        self.t = math.floor(self.r / 2)
+        self.t = int(math.floor(self.r / 2))
         self.generator = self.generator_poly()
 
     def generator_poly(self):
@@ -551,33 +552,61 @@ class RS:
         return msg_out[:-self.r], msg_out[-self.r:]  # also return the corrected ecc block so that the user can check()
 
 
+def get_errors_positions(encoded, decoded)
+
+def generate_errors(msg, t, magnitude):
+    if magnitude > t:
+        raise ValueError("Magnitude must be <= t")
+    msg_damaged = list(msg)
+
+    errors_number = int(math.floor(t/magnitude))
+    print("Errors number: %d" % errors_number)
+
+    start_position = 0
+    for i in range(errors_number):
+        for j in range(magnitude):
+            msg_damaged[i + j + start_position] = random.randint(0, 255)
+        start_position += magnitude
+    print(msg)
+    print(msg_damaged)
+
+    positions = []
+    for i in range(len(msg)):
+        if msg[i] != msg_damaged[i]:
+            positions.append(i)
+    print("Errors positions: %s Count: %d" % (positions, len(positions)))
+
+
+
+
 def main():
     print("=====KOD RS=====\n")
 
     info = "One morning, when Gregor Samsa woke from troubled dreams, he found himself transformed in his bed into a horrible vermin. He lay on his armour-like back, and if he lifted his head a little he could see"
     info_in_unicode = [ord(x) for x in info]
-    print("Info: %s LEN: %d" % (info, len(info)))
-    print("Info ascii:      %s" % info_in_unicode)
-
+    # print("Info: %s LEN: %d" % (info, len(info)))
+    # print("Info ascii:      %s" % info_in_unicode)
+    #
     init_tables(0x11d, 2, 8)
     rs = RS()
     encoded = rs.encode(info_in_unicode)
-    print("Encoded:         %s" % encoded)
+    # print("Encoded:         %s" % encoded)
+    #
+    # encoded_damaged = list(encoded)
+    # for i in range(rs.t):
+    #     encoded_damaged[i] = 88
+    # print("Encoded damaged: %s" % encoded_damaged)
+    # print("Info: %s" % ''.join([chr(x) for x in encoded_damaged[:rs.k]]))
+    # # decoded_simple = rs.decode_simple(encoded_damaged)
+    # # print("Decoded simple:  %s" % decoded_simple)
+    # # print("Info: %s" % ''.join([chr(x) for x in decoded_simple[:rs.k]]))
+    # # print("Encoded == Decoded: %s\n" % (encoded == decoded_simple))
+    #
+    # decoded, ecc = rs.correct_msg(encoded_damaged)
+    # print("Decoded:         %s" % decoded)
+    # print("Info: %s" % ''.join([chr(x) for x in decoded]))
 
-    encoded_damaged = list(encoded)
-    encoded_damaged[4] = 88
-    print("Encoded damaged: %s" % encoded_damaged)
-    # print(''.join([chr(x) for x in encoded]))
-    decoded_simple = rs.decode_simple(encoded_damaged)
-    print("Decoded:         %s" % decoded_simple)
-    print("Info: %s" % ''.join([chr(x) for x in decoded_simple[:rs.k]]))
-    print("Encoded == Decoded: %s" % (encoded == decoded_simple))
-
-
-    # decoded, ecc = rs.correct_msg(encoded)
-    # print(decoded)
-    # print(''.join([chr(x) for x in decoded]))
-
+    generate_errors(encoded, rs.t, 3)
 
 if __name__ == "__main__":
     main()
