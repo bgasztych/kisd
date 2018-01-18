@@ -213,17 +213,11 @@ def gf_poly_scale(p, x):
     return r
 
 
-def gf_is_zero_poly(poly):
-    for i in range(len(poly)):
-        if poly[i] != 0:
-            return False
-    return True
-
-
 def gf_poly_weight(poly):
+    # Obliczenie wagi Hamminga (liczba niezerowych wspolrzednych wielomianu)
     weight = 0
     for i in range(len(poly)):
-        if not gf_is_zero_poly([poly[i]]):
+        if poly[i] != 0:
             weight += 1
     return weight
 
@@ -284,37 +278,37 @@ class RS:
 
     def decode_simple(self, msg):
         msg_out = list(msg)
-        # Dzielimy wiadomosc przez generator, reszta z dzielenia bedzie syndromem
-        # _, synd = gf_poly_div(msg + [0] * self.r, self.generator)
-        # synd = self.calc_syndromes(msg)
-        # print("Syndrom: %s" % synd)
-        # print("Syndrom zero poly: %s" % gf_is_zero_poly(synd))
-        # Jesli synrom rowny zero w wiadomosci nie wystapily bledy
-        # if gf_is_zero_poly(synd):
-        #     return msg_out
 
+        # Wyzerowanie licznika przesuniec
         shifts = 0
         while True:
+            # Obliczenie syndromu i jego wagi
             _, synd = gf_poly_div(msg_out, self.generator)
             weight = gf_poly_weight(synd)
             # print("Weight: %d Shifts: %d" % (weight, shifts))
 
+            # Sprawdzenie warunku korekcji
             if weight <= self.t:
-                msg_out = gf_poly_add(msg_out, synd)  # TODO pozycje
+                # Waga syndromu jest mniejsza lub rowna zdolnosci korekcyjnej, wiec
+                # bledy znajduja sie w czesci kontrolnej
+                msg_out = gf_poly_add(msg_out, synd)
+                # Przesuwamy wektor kodowy w lewo tyle razy ile zostal on przesuniety w prawo
+                # aby odtworzyc jego pierwotna postac
                 msg_out = gf_shift_poly_left(msg_out, shifts)
-                print("Shift LEFT: %d" % shifts)
+                # print("Shift LEFT: %d" % shifts)
                 return msg_out
             else:
+                # Waga syndromu wieksza od zdolnosci korekcyjnej, wiec
+                # bledy znajduja sie w czesci informacyjnej
+
+                # Jesli nastapilo k przesuniec i nie udalo sie skorygowac wektora kodowego
+                # to wystapily bledy niekorygowalne
                 if shifts == self.k:
                     raise ValueError("Bledy niekorygowalne")
                 else:
                     msg_out = gf_shift_poly_right(msg_out, 1)
-                    print("Shift RIGHT: 1")
+                    # print("Shift RIGHT: 1")
                     shifts += 1
-
-        # msg_out = gf_poly_add(msg, synd)
-        # print(len(msg_out))
-        # return msg_out
 
     def calc_syndromes(self, msg):
         # Wyliczamy syndromy
@@ -562,22 +556,22 @@ def main():
 
     info = "One morning, when Gregor Samsa woke from troubled dreams, he found himself transformed in his bed into a horrible vermin. He lay on his armour-like back, and if he lifted his head a little he could see"
     info_in_unicode = [ord(x) for x in info]
-    print("%s LEN: %d" % (info, len(info)))
-    print(info_in_unicode)
+    print("Info: %s LEN: %d" % (info, len(info)))
+    print("Info ascii:      %s" % info_in_unicode)
 
     init_tables(0x11d, 2, 8)
     rs = RS()
     encoded = rs.encode(info_in_unicode)
-    print(encoded)
+    print("Encoded:         %s" % encoded)
 
     encoded_damaged = list(encoded)
     encoded_damaged[4] = 88
-    print(encoded_damaged)
+    print("Encoded damaged: %s" % encoded_damaged)
     # print(''.join([chr(x) for x in encoded]))
     decoded_simple = rs.decode_simple(encoded_damaged)
-    print(decoded_simple)
-    print(''.join([chr(x) for x in decoded_simple]))
-    print(encoded == decoded_simple)
+    print("Decoded:         %s" % decoded_simple)
+    print("Info: %s" % ''.join([chr(x) for x in decoded_simple[:rs.k]]))
+    print("Encoded == Decoded: %s" % (encoded == decoded_simple))
 
 
     # decoded, ecc = rs.correct_msg(encoded)
