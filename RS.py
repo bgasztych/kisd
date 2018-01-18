@@ -1,3 +1,5 @@
+import math
+
 gf_exp = [0] * 512  # Create list of 512 elements. In Python 2.6+, consider using bytearray
 gf_log = [0] * 256
 field_size = int(2 ** 8 - 1)
@@ -211,6 +213,43 @@ def gf_poly_scale(p, x):
     return r
 
 
+def gf_is_zero_poly(poly):
+    for i in range(len(poly)):
+        if poly[i] != 0:
+            return False
+    return True
+
+
+def gf_poly_weight(poly):
+    weight = 0
+    for i in range(len(poly)):
+        if not gf_is_zero_poly([poly[i]]):
+            weight += 1
+    return weight
+
+
+def gf_shift_poly_right(poly, shifts):
+    r = [0] * len(poly)
+    shifts %= len(poly)
+    for i in range(len(r)):
+        position = i + shifts
+        if position >= len(r):
+            position -= len(poly)
+        r[position] = poly[i]
+    return r
+
+
+def gf_shift_poly_left(poly, shifts):
+    r = [0] * len(poly)
+    shifts %= len(poly)
+    for i in range(len(r)):
+        position = i - shifts
+        if position < 0:
+            position += len(poly)
+        r[position] = poly[i]
+    return r
+
+
 class RS:
     # GF(2^m)
     # m = 8 => Liczba bitów na symbol
@@ -222,6 +261,7 @@ class RS:
         self.n = n
         self.k = k
         self.r = self.n - self.k
+        self.t = math.floor(self.r / 2)
         self.generator = self.generator_poly()
 
     def generator_poly(self):
@@ -230,7 +270,7 @@ class RS:
         g = [1]
         for i in range(0, self.r):
             g = gf_poly_mul(g, [1, gf_pow(2, i)])
-        print("generator_rs: %s\nlen: %d" % (g,  len(g)))
+        # print("generator_rs: %s\nlen: %d" % (g,  len(g)))
         return g
 
     def encode(self, msg):
@@ -243,25 +283,46 @@ class RS:
         return msg_out
 
     def decode_simple(self, msg):
+        msg_out = list(msg)
         # Dzielimy wiadomosc przez generator, reszta z dzielenia bedzie syndromem
-        _, synd = gf_poly_div(msg + [0] * self.r, self.generator)
-        print(len(msg))
-        print(len(synd))
-        msg_out = gf_poly_add(msg, synd + [0] * self.r)
-        print(len(msg_out))
-        return msg_out
+        # _, synd = gf_poly_div(msg + [0] * self.r, self.generator)
+        # synd = self.calc_syndromes(msg)
+        # print("Syndrom: %s" % synd)
+        # print("Syndrom zero poly: %s" % gf_is_zero_poly(synd))
+        # Jesli synrom rowny zero w wiadomosci nie wystapily bledy
+        # if gf_is_zero_poly(synd):
+        #     return msg_out
+
+        shifts = 0
+        while True:
+            _, synd = gf_poly_div(msg_out, self.generator)
+            weight = gf_poly_weight(synd)
+            # print("Weight: %d Shifts: %d" % (weight, shifts))
+
+            if weight <= self.t:
+                msg_out = gf_poly_add(msg_out, synd)  # TODO pozycje
+                msg_out = gf_shift_poly_left(msg_out, shifts)
+                print("Shift LEFT: %d" % shifts)
+                return msg_out
+            else:
+                if shifts == self.k:
+                    raise ValueError("Bledy niekorygowalne")
+                else:
+                    msg_out = gf_shift_poly_right(msg_out, 1)
+                    print("Shift RIGHT: 1")
+                    shifts += 1
+
+        # msg_out = gf_poly_add(msg, synd)
+        # print(len(msg_out))
+        # return msg_out
 
     def calc_syndromes(self, msg):
-        '''Given the received codeword msg and the number of error correcting symbols (nsym), computes the syndromes polynomial.
-        Mathematically, it's essentially equivalent to a Fourrier Transform (Chien search being the inverse).
-        '''
-        # Note the "[0] +" : we add a 0 coefficient for the lowest degree (the constant). This effectively shifts the syndrome, and will shift every computations depending on the syndromes (such as the errors locator polynomial, errors evaluator polynomial, etc. but not the errors positions).
-        # This is not necessary, you can adapt subsequent computations to start from 0 instead of skipping the first iteration (ie, the often seen range(1, n-k+1)),
+        # Wyliczamy syndromy
+        #
         synd = [0] * self.r
         for i in range(0, self.r):
             synd[i] = gf_poly_eval(msg, gf_pow(2, i))
-        return [
-                   0] + synd  # pad with one 0 for mathematical precision (else we can end up with weird calculations sometimes)
+        return [0] + synd
 
     def forney_syndromes(self, synd, pos, nmess):
         # Compute Forney syndromes, which computes a modified syndromes to compute only errors (erasures are trimmed out). Do not confuse this with Forney algorithm, which allows to correct the message based on the location of errors.
@@ -366,8 +427,8 @@ class RS:
                 err_pos.append(nmess - 1 - i)
         # Sanity check: the number of errors/errata positions found should be exactly the same as the length of the errata locator polynomial
         # if len(err_pos) != errs: TODO Odkomenrtować
-            # couldn't find error locations
-            # raise ValueError("Too many (or few) errors found by Chien Search for the errata locator polynomial!") TODO Odkomenrtować
+        # couldn't find error locations
+        # raise ValueError("Too many (or few) errors found by Chien Search for the errata locator polynomial!") TODO Odkomenrtować
         return err_pos
 
     def find_errata_locator(self, e_pos):
@@ -509,16 +570,16 @@ def main():
     encoded = rs.encode(info_in_unicode)
     print(encoded)
 
-    encoded[4] = 88
-    decoded_simple = rs.decode_simple(encoded)
+    encoded_damaged = list(encoded)
+    encoded_damaged[4] = 88
+    print(encoded_damaged)
+    # print(''.join([chr(x) for x in encoded]))
+    decoded_simple = rs.decode_simple(encoded_damaged)
     print(decoded_simple)
     print(''.join([chr(x) for x in decoded_simple]))
     print(encoded == decoded_simple)
-    # for i in range(27):
-    #     if True:
-    #         encoded[i] = 88
-    # print(encoded)
-    #
+
+
     # decoded, ecc = rs.correct_msg(encoded)
     # print(decoded)
     # print(''.join([chr(x) for x in decoded]))
