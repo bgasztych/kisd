@@ -305,7 +305,9 @@ class RS:
                 # Jesli nastapilo k przesuniec i nie udalo sie skorygowac wektora kodowego
                 # to wystapily bledy niekorygowalne
                 if shifts == self.k:
-                    raise ValueError("Bledy niekorygowalne")
+                    msg_out = gf_shift_poly_left(msg_out, shifts)
+                    return msg_out
+                    # raise ValueError("Bledy niekorygowalne")
                 else:
                     msg_out = gf_shift_poly_right(msg_out, 1)
                     # print("Shift RIGHT: 1")
@@ -552,61 +554,71 @@ class RS:
         return msg_out[:-self.r], msg_out[-self.r:]  # also return the corrected ecc block so that the user can check()
 
 
-def get_errors_positions(encoded, decoded)
+def get_errors_percent_corrected(encoded, decoded, t):
+    counter = 0
+    for i in range(len(encoded)):
+        if encoded[i] != decoded[i]:
+            counter += 1
+    percent = (counter / t) * 100
+    print("Errors percent corrected: %f%%" % percent)
+    return percent
+
 
 def generate_errors(msg, t, magnitude):
     if magnitude > t:
         raise ValueError("Magnitude must be <= t")
     msg_damaged = list(msg)
 
-    errors_number = int(math.floor(t/magnitude))
+    errors_number = int(math.floor(t / magnitude))
     print("Errors number: %d" % errors_number)
 
-    start_position = 0
+    max_spacing = int((255 - magnitude) / errors_number)
+    min_spacing = int(max_spacing * 0.7)
+    # print("Max spacing: %d" % max_spacing)
+    start_position = int(random.randint(0, int(min_spacing * 0.25)))
     for i in range(errors_number):
         for j in range(magnitude):
             msg_damaged[i + j + start_position] = random.randint(0, 255)
-        start_position += magnitude
-    print(msg)
-    print(msg_damaged)
+        start_position += magnitude + random.randint(random.randint(1, min_spacing), max_spacing)
+    # print(msg)
+    # print(msg_damaged)
 
     positions = []
     for i in range(len(msg)):
         if msg[i] != msg_damaged[i]:
             positions.append(i)
     print("Errors positions: %s Count: %d" % (positions, len(positions)))
+    return msg_damaged
 
 
-
-
+# print("\033[0;31;48m" + str(e) + "\x1b[0m")
 def main():
     print("=====KOD RS=====\n")
 
     info = "One morning, when Gregor Samsa woke from troubled dreams, he found himself transformed in his bed into a horrible vermin. He lay on his armour-like back, and if he lifted his head a little he could see"
     info_in_unicode = [ord(x) for x in info]
-    # print("Info: %s LEN: %d" % (info, len(info)))
-    # print("Info ascii:      %s" % info_in_unicode)
-    #
+    print("Info: %s LEN: %d" % (info, len(info)))
+    print("Info ascii:      %s" % info_in_unicode)
+
     init_tables(0x11d, 2, 8)
     rs = RS()
     encoded = rs.encode(info_in_unicode)
-    # print("Encoded:         %s" % encoded)
-    #
-    # encoded_damaged = list(encoded)
-    # for i in range(rs.t):
-    #     encoded_damaged[i] = 88
-    # print("Encoded damaged: %s" % encoded_damaged)
-    # print("Info: %s" % ''.join([chr(x) for x in encoded_damaged[:rs.k]]))
-    # # decoded_simple = rs.decode_simple(encoded_damaged)
-    # # print("Decoded simple:  %s" % decoded_simple)
-    # # print("Info: %s" % ''.join([chr(x) for x in decoded_simple[:rs.k]]))
-    # # print("Encoded == Decoded: %s\n" % (encoded == decoded_simple))
-    #
+    print("Encoded:         %s" % encoded)
+
+    encoded_damaged = generate_errors(encoded, rs.t, 1)
+    print("Encoded damaged: %s" % encoded_damaged)
+    print("Info: %s" % ''.join([chr(x) for x in encoded_damaged[:rs.k]]))
+    decoded_simple = rs.decode_simple(encoded_damaged)
+    print("Decoded simple:  %s" % decoded_simple)
+    print("Info: %s" % ''.join([chr(x) for x in decoded_simple[:rs.k]]))
+    print("Encoded == Decoded: %s\n" % (encoded == decoded_simple))
+    get_errors_percent_corrected(encoded_damaged, decoded_simple, rs.t)
+
     # decoded, ecc = rs.correct_msg(encoded_damaged)
     # print("Decoded:         %s" % decoded)
     # print("Info: %s" % ''.join([chr(x) for x in decoded]))
+    # print("Encoded == Decoded: %s\n" % (encoded == decoded))
 
-    generate_errors(encoded, rs.t, 3)
 
 if __name__ == "__main__":
     main()
