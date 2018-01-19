@@ -530,7 +530,7 @@ class RS:
         synd = self.calc_syndromes(msg_out)
         # check if there's any error/erasure in the input codeword. If not (all syndromes coefficients are 0), then just return the message as-is.
         if max(synd) == 0:
-            return msg_out[:-self.r], msg_out[-self.r:]  # no errors
+            return msg_out  # no errors
 
         # compute the Forney syndromes, which hide the erasures from the original syndrome (so that BM will just have to deal with errors, not erasures)
         fsynd = self.forney_syndromes(synd, erase_pos, len(msg_out))
@@ -551,16 +551,15 @@ class RS:
         # if max(synd) > 0: TODO Odkomenrtować
         #     raise ValueError("Could not correct message")  # message could not be repaired TODO Odkomenrtować
         # return the successfully decoded message
-        return msg_out[:-self.r], msg_out[-self.r:]  # also return the corrected ecc block so that the user can check()
+        return msg_out
 
 
-def get_errors_percent_corrected(encoded, decoded, t):
+def get_errors_percent_corrected(encoded, decoded, damaged_symbols_number):
     counter = 0
     for i in range(len(encoded)):
         if encoded[i] != decoded[i]:
             counter += 1
-    percent = (counter / t) * 100
-    print("Errors percent corrected: %f%%" % percent)
+    percent = (counter / damaged_symbols_number) * 100
     return percent
 
 
@@ -573,8 +572,8 @@ def generate_errors(msg, t, magnitude):
     print("Errors number: %d" % errors_number)
 
     max_spacing = int((255 - magnitude) / errors_number)
-    min_spacing = int(max_spacing * 0.7)
-    # print("Max spacing: %d" % max_spacing)
+    min_spacing = int(max_spacing * 0.5)
+    print("Max spacing: %d" % max_spacing)
     start_position = int(random.randint(0, int(min_spacing * 0.25)))
     for i in range(errors_number):
         for j in range(magnitude):
@@ -588,7 +587,7 @@ def generate_errors(msg, t, magnitude):
         if msg[i] != msg_damaged[i]:
             positions.append(i)
     print("Errors positions: %s Count: %d" % (positions, len(positions)))
-    return msg_damaged
+    return msg_damaged, len(positions)
 
 
 # print("\033[0;31;48m" + str(e) + "\x1b[0m")
@@ -605,19 +604,20 @@ def main():
     encoded = rs.encode(info_in_unicode)
     print("Encoded:         %s" % encoded)
 
-    encoded_damaged = generate_errors(encoded, rs.t, 1)
+    encoded_damaged, damaged_symbols_number = generate_errors(encoded, rs.t, 10)
     print("Encoded damaged: %s" % encoded_damaged)
     print("Info: %s" % ''.join([chr(x) for x in encoded_damaged[:rs.k]]))
     decoded_simple = rs.decode_simple(encoded_damaged)
     print("Decoded simple:  %s" % decoded_simple)
     print("Info: %s" % ''.join([chr(x) for x in decoded_simple[:rs.k]]))
-    print("Encoded == Decoded: %s\n" % (encoded == decoded_simple))
-    get_errors_percent_corrected(encoded_damaged, decoded_simple, rs.t)
+    print("Encoded == Decoded SIMPLE: %s" % (encoded == decoded_simple))
+    print("Errors percent corrected [SIMPLE]: %s%%\n" % get_errors_percent_corrected(encoded_damaged, decoded_simple, damaged_symbols_number))
 
-    # decoded, ecc = rs.correct_msg(encoded_damaged)
-    # print("Decoded:         %s" % decoded)
-    # print("Info: %s" % ''.join([chr(x) for x in decoded]))
-    # print("Encoded == Decoded: %s\n" % (encoded == decoded))
+    decoded = rs.correct_msg(encoded_damaged)
+    print("Decoded:         %s" % decoded)
+    print("Info: %s" % ''.join([chr(x) for x in decoded]))
+    print("Encoded == Decoded: %s" % (encoded == decoded))
+    print("Errors percent corrected [EXTENDED]: %s%%" % get_errors_percent_corrected(encoded_damaged, decoded, damaged_symbols_number))
 
 
 if __name__ == "__main__":
