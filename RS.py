@@ -115,6 +115,7 @@ def init_tables(prim=0x11d, generator=2, c_exp=8):
     # stay inside the bounds (because we will mainly use this table for the multiplication of two GF numbers, no more).
     for i in range(field_size, field_size * 2):
         gf_exp[i] = gf_exp[i - field_size]
+    print(gf_exp)
     return [gf_log, gf_exp]
 
 
@@ -245,6 +246,68 @@ def gf_shift_poly_left(poly, shifts):
     return r
 
 
+def gf_solve(A, B):
+    n = len(B)
+    for p in range(n):
+        maximum = p
+        for i in range(p + 1, n):
+            # print("SOLV: %s | %s" % (A[i][p][0], A[maximum][p][0]))
+
+            if not isinstance(A[i][p], int):
+                arg1 = (A[i][p])[0]
+            else:
+                arg1 = A[i][p]
+
+            if not isinstance(A[maximum][p], int):
+                arg2 = (A[maximum][p])[0]
+            else:
+                arg2 = A[maximum][p]
+            # print("ARGS: %s | %s" % (arg1, arg2))
+
+            if abs(arg1) > abs(arg2):
+                maximum = i
+        temp = A[p]
+        A[p] = A[maximum]
+        A[maximum] = temp
+        t = B[p]
+        B[p] = B[maximum]
+        B[maximum] = t
+
+        if not isinstance(A[p][p], int):
+            arg3 = (A[p][p])[0]
+        else:
+            arg3 = (A[p][p])
+
+        if abs(arg3) == 0:
+            return None
+
+        for i in range(p + 1, n):
+            alpha = gf_div(A[i][p][0], A[p][p][0])
+            # print("ALPHA: %s" % B[p][0])
+            B[i] = gf_add(B[i][0], gf_mul(alpha, B[p][0]))
+            for j in range(p, n):
+                A[i][j] = gf_add(A[i][j][0], gf_mul(alpha, A[p][j][0]))
+
+    x = [0] * n
+    for i in range(n - 1, -1, -1):
+        suma = 0
+        for j in range(i + 1, n):
+            suma = gf_add(suma, gf_mul(A[i][j], x[j]))
+            x[i] = gf_div(gf_add(B[i], suma), A[i][i])
+    return x
+
+
+def gf_find_roots(error_locator_polynomial):
+    v = (len(error_locator_polynomial) - 1)
+    result = [0] * v
+    last_found_root_index = 0
+    for i in range(field_size, 0, -1):
+        if gf_poly_eval(error_locator_polynomial, gf_exp[i]) == 0:
+            result[last_found_root_index] = ((field_size-i+1) % field_size)
+            last_found_root_index += 1
+    return result
+
+
 class RS:
     # GF(2^m)
     # m = 8 => Liczba bitów na symbol
@@ -265,7 +328,7 @@ class RS:
         g = [1]
         for i in range(0, self.r):
             g = gf_poly_mul(g, [1, gf_pow(2, i)])
-        # print("generator_rs: %s\nlen: %d" % (g,  len(g)))
+        print("generator_rs: %s\nlen: %d" % (g,  len(g)))
         return g
 
     def encode(self, msg):
@@ -274,7 +337,7 @@ class RS:
         # Dzielimy wielomian informacyjny przez generator
         _, remainder = gf_poly_div(msg + [0] * self.r, self.generator)
         # Doklejamy czesc kontrolna
-        msg_out = msg + remainder
+        msg_out = remainder + msg
         return msg_out
 
     def decode_simple(self, msg):
@@ -318,158 +381,72 @@ class RS:
         synd = [0] * self.r
         for i in range(0, self.r):
             synd[i] = gf_poly_eval(msg, gf_pow(2, i))
-        return [0] + synd
+        return synd
 
-    def find_errata_locator(self, e_pos):
-        # Wyliczamy locator polynomial (sigma)
-        e_loc = [1]
-        # erasures_loc = Iloczyn kartezjanski(1 - x(i) * z) i jest kolejnymi wartosciami syndromu
-        for i in e_pos:
-            e_loc = gf_poly_mul(e_loc, gf_poly_add([1], [gf_pow(2, i), 0]))
-        return e_loc
+    def compose_s_matrix(self, syndromes, v):
+        result = [[0 for x in range(v)] for y in range(v)]
+        for i in range(v):
+            for j in range(v):
+                result[i][j] = syndromes[i + v - j - 1]
+        return result
 
-    def find_error_evaluator(self, synd, err_loc):
-        # Obliczamy evaluator polynomial na podstawie obliczonego wczesniej locator polynomial
-        #  omega(x) = [ syndrom(x) * error_loc(x) ] mod len(error_loc) + 1
-        _, remainder = gf_poly_div(gf_poly_mul(synd, err_loc), ([1] + [0] * (len(err_loc) + 1)))
-        # print(len(gf_poly_mul(synd, err_loc)))
-        # print(len(remainder))
-        return remainder
+    def compose_x_matrix(self, error_locator_roots, v):
+        print("COMPOSE: %s" % error_locator_roots)
+        result = [[0 for x in range(v)] for y in range(v)]
+        for i in range(v):
+            alpha = gf_exp[i]
+            for j in range(v):
+                val = 1
+                for a in range(1, error_locator_roots[j] + 1):
+                    val = gf_mul(val, alpha)
+                result[i][j] = val
+        return result
 
-    def correct_errata(self, msg_in, synd, err_pos):  # err_pos -> lista pozycja na ktorej znajduja sie errors/erasures
-        # Algorytm Forney'a -> oblicza wartości bledow dla podanych pozycji bledow
-        coef_pos = [len(msg_in) - 1 - p for p in err_pos]  # konwersja pozycji na format (n - err_pos[i])
-        print("ERR_POS: %s" % err_pos)
-        print("COEF_POS: %s" % coef_pos)
-        # Obliczenie errata locator polynomial do korekcji error i erasures
-        err_loc = self.find_errata_locator(coef_pos)
-        # Obliczenie errata evaluator polynomial
-        err_eval = self.find_error_evaluator(synd[::-1], err_loc)[::-1]
+    def compose_error_locator_eq_lhs(self, syndromes, v):
+        result = [0] * v
+        for i in range(v):
+            result[i] = syndromes[v + i]
+        return result
 
-        # Obliczenie error location polynomial
-        X = []
-        for i in range(0, len(coef_pos)):
-            l = 255 - coef_pos[i]
-            X.append(gf_pow(2, -l))
-        print("X: %s" % X)
+    def decode(self, msg):
+        if len(msg) != self.n:
+            raise ValueError("Message length must be = %d" % self.n)
 
-        # Algorytm Forneya, obliczamy error magnitude polynomial
-        E = [0] * (len(msg_in))  # E bedzie naszym wielomianem potrzebnym do korekcji, ktorego bedziemy odejmowac od wiadomosci
-        Xlength = len(X)
-        for i, Xi in enumerate(X):
+        syndromes = [0] * (2 * self.t)
+        for i in range(2 * self.t):
+            _, syndromes[i] = gf_poly_div(msg, [gf_exp[i], 1])
 
-            Xi_inv = gf_inverse(Xi)
+        v = self.t
+        error_locator_polynomial = None
+        while error_locator_polynomial is None and v > 1:
+            error_locator_polynomial = gf_solve(self.compose_s_matrix(syndromes, v), self.compose_error_locator_eq_lhs(syndromes, v))
+            v -= 1
 
-            # Obliczenie pochodnej formalnej
-            # error_evaluator(gf_inverse(Xi)) / error_locator_derivative(gf_inverse(Xi))
-            err_loc_prime_tmp = []
-            for j in range(0, Xlength):
-                if j != i:
-                    err_loc_prime_tmp.append(gf_sub(1, gf_mul(Xi_inv, X[j])))
+        if error_locator_polynomial is None:
+            return msg
+        else:
+            print("len erp: %d v: %d" % (len(error_locator_polynomial), v))
+            temp = list(error_locator_polynomial)
+            error_locator_polynomial = [0] * (v + 1)
+            error_locator_polynomial[0] = 1
+            print("len erp: %d v: %d len temp: %d" % (len(error_locator_polynomial), v, len(temp)))
+            for i in range(len(temp)):
+                print("I: %d" % i)
+                error_locator_polynomial[i + 1] = temp[i]
 
-            err_loc_prime = 1
-            for coef in err_loc_prime_tmp:
-                err_loc_prime = gf_mul(err_loc_prime, coef)
+            error_locator_roots = gf_find_roots(error_locator_polynomial)
 
-            # Obliczenie ewaluacji errata evaluator polynomial
-            # Yl = omega(Xl.inverse()) / prod(1 - Xj*Xl.inverse()) for j in len(X)
-            y = gf_poly_eval(err_eval[::-1], Xi_inv)  # errata evaluator evaluated
-            y = gf_mul(gf_pow(Xi, 1), y)
+            error_values = gf_solve(self.compose_x_matrix(error_locator_roots, v), syndromes[:v])
 
-            # Obliczenie wartosci do korekcji bledu
-            magnitude = gf_div(y, err_loc_prime)
-            E[err_pos[i]] = magnitude  # zapisanie wartosci do wielomianu E
+            if error_values is None:
+                return msg
 
-        # Korygujemy bledy
-        msg_in = gf_poly_add(msg_in, E)  # Ci = Ri - Ei -> Ci - poprawiona wiadomosc, Ri - otrzymana wiadomosc, Ei - errata magnitudes. Minus zamieniony przez XOR(dla GF(2^p))
-        return msg_in
+            msg_out = list(msg)
+            for i in range(len(error_locator_roots)):
+                location = error_locator_roots[i]
+                msg_out[location] = gf_add(msg_out[location], error_values[i])
 
-    def find_error_locator(self, synd, erase_count=0):
-        # Algorytm Berlekamp-Massey -> Znalezienie error/errata locator i evaluator polynomials
-        # Inicjalizacja wielomanow
-        err_loc = [1]  # sigma - errors/errata locator polynomial.
-        old_loc = [1]  # Poprzednia wartosc sigma
-
-        # Przesuniecie syndromu
-        synd_shift = 0
-        if len(synd) > self.r:
-            synd_shift = len(synd) - self.r
-
-        for i in range(0, self.r - erase_count):  # nsym - erase_count == len(synd)
-            K = i + synd_shift
-
-            # Obliczamy delta
-            delta = synd[K]
-            for j in range(1, len(err_loc)):
-                delta ^= gf_mul(err_loc[-(j + 1)], synd[K - j])
-
-            # Przesuniecie wielomianu w celu wyliczenia kolejnego stopnia
-            old_loc = old_loc + [0]
-
-            # Obliczamy errata locator i evaluator polynomials
-            if delta != 0:  # Aktualizujemy gdy delta != 0
-                if len(old_loc) > len(err_loc):  # Pomijamy modyfikacje jesli 2*L <= K+erase_count
-                    # Obliczenie errata locator polynomial Sigma
-                    new_loc = gf_poly_scale(old_loc, delta)
-                    old_loc = gf_poly_scale(err_loc, gf_inverse(delta))  # err_loc * 1/delta = err_loc // delta
-                    err_loc = new_loc
-
-                # Aktualizujemy z uzyciem delta
-                err_loc = gf_poly_add(err_loc, gf_poly_scale(old_loc, delta))
-
-        # Sprawdzenie czy wynik jest poprawny
-        while len(err_loc) and err_loc[0] == 0:
-            del err_loc[0]  # drop leading 0s, else errs will not be of the correct size
-        return err_loc
-
-    def forney_syndromes(self, synd, pos, nmess):
-        # Obliczenie syndromow Forneya -> wyliczenie zmodyfikowanego syndromu do poprawy errors
-        erase_pos_reversed = [nmess - 1 - p for p in pos]  # Przygotowanie coefficient degree positions (zamiast erasures positions)
-
-        fsynd = list(synd[1:])  # Skopiowanie i przyciecie syndromu (pierwszy element jest zawsze = 0
-        for i in range(0, len(pos)):
-            x = gf_pow(2, erase_pos_reversed[i])
-            for j in range(0, len(fsynd) - 1):
-                fsynd[j] = gf_mul(fsynd[j], x) ^ fsynd[j + 1]
-
-        # fsynd = (erase_loc * synd) % x^(n-k)
-        return fsynd
-
-    def find_errors(self, err_loc, nmess):
-        # Obliczenie korzeni error polynomial gdzie ewaluacja = 0
-        err_pos = []
-        for i in range(nmess):
-            if gf_poly_eval(err_loc, gf_pow(2, i)) == 0:  # Jesli 0 to znalezlismy korzen error locator polynomial czyli mamy lokalizacje error
-                err_pos.append(nmess - 1 - i)
-        return err_pos
-
-    def decode(self, msg_in):
-        if len(msg_in) > self.n:  # Jesli wiadomosc dluzsza od n nie mozemy zdekodowac wiadomosci
-            raise ValueError("Message is too long (%i when max is %d)" % (len(msg_in), self.n))
-
-        msg_out = list(msg_in)
-        erase_pos = []
-        # Sprawdzenie granicy Singletona (czy jestesmy w stanie skorygowav erasures)
-        if len(erase_pos) > self.r:
-            raise ValueError("Too many erasures to correct")
-        # Obliczenie syndromu tylko dla errors
-        synd = self.calc_syndromes(msg_out)
-        # Jesli syndrom == 0 to brak bledow
-        if max(synd) == 0:
             return msg_out
-
-        # Obliczenie syndromu Fourneya, aby ukryc erasures z oryginalnego syndromu (korygujemy tylko errors)
-        fsynd = self.forney_syndromes(synd, erase_pos, len(msg_out))
-        # Obliczenie error locator polynomial przy uzyciu algorytmu Berlkamp-Massey
-        err_loc = self.find_error_locator(fsynd, len(erase_pos))
-        # Zlokalizowanie errors w wiadomosci
-        err_pos = self.find_errors(err_loc[::-1], len(msg_out))
-        if err_pos is None:
-            raise ValueError("Could not locate error")
-
-        # Obliczenie errata evaluator i errata magnitude polynomials, nastepnie korekcja errors and erasures
-        msg_out = self.correct_errata(msg_out, synd, (erase_pos + err_pos))  # Uzywamy oryginalnego syndromu bo korygujemy errors i erasures jednoczesnie
-        return msg_out
 
 
 def get_errors_percent_corrected(encoded, decoded, damaged_symbols_number):
@@ -524,20 +501,31 @@ def main():
     encoded = rs.encode(info_in_unicode)
     print("Encoded:         %s" % encoded)
 
-    encoded_damaged, damaged_symbols_number = generate_errors(encoded, rs.t, 10, 1)
+    encoded_damaged = list(encoded)
+    # encoded_damaged[0] = 88
+    # encoded_damaged[2] = 88
+    # encoded_damaged[3] = 88
+    # encoded_damaged[10] = 88
+    # encoded_damaged[47] = 88
+    encoded_damaged[55] = 88
+    # encoded_damaged[225] = 88
+    damaged_symbols_number = 1
+
+    # encoded_damaged, damaged_symbols_number = generate_errors(encoded, rs.t, 10, 1)
     print("Encoded damaged: %s" % encoded_damaged)
-    print("Info: %s" % ''.join([chr(x) for x in encoded_damaged[:rs.k]]))
+    print("Info: %s" % ''.join([chr(x) for x in encoded_damaged[rs.r:]]))
     decoded_simple = rs.decode_simple(encoded_damaged)
     print("Decoded simple:  %s" % decoded_simple)
-    print("Info: %s" % ''.join([chr(x) for x in decoded_simple[:rs.k]]))
+    print("Info: %s" % ''.join([chr(x) for x in decoded_simple[rs.r:]]))
     print("Encoded == Decoded SIMPLE: %s" % (encoded == decoded_simple))
     print("Errors percent corrected [SIMPLE]: %s%%\n" % get_errors_percent_corrected(encoded_damaged, decoded_simple, damaged_symbols_number))
 
     decoded = rs.decode(encoded_damaged)
     print("Decoded:         %s" % decoded)
-    print("Info: %s" % ''.join([chr(x) for x in decoded]))
+    print("Info: %s" % ''.join([chr(x) for x in decoded[rs.r:]]))
     print("Encoded == Decoded: %s" % (encoded == decoded))
     print("Errors percent corrected [EXTENDED]: %s%%" % get_errors_percent_corrected(encoded_damaged, decoded, damaged_symbols_number))
+
 
 
 if __name__ == "__main__":
