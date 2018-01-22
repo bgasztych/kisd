@@ -1,6 +1,8 @@
 import math
 import random
 
+import time
+
 gf_exp = [0] * 512  # Create list of 512 elements. In Python 2.6+, consider using bytearray
 gf_log = [0] * 256
 field_size = int(2 ** 8 - 1)
@@ -339,8 +341,8 @@ class RS:
     def correct_errata(self, msg_in, synd, err_pos):  # err_pos -> lista pozycja na ktorej znajduja sie errors/erasures
         # Algorytm Forney'a -> oblicza wartości bledow dla podanych pozycji bledow
         coef_pos = [len(msg_in) - 1 - p for p in err_pos]  # konwersja pozycji na format (n - err_pos[i])
-        print("ERR_POS: %s" % err_pos)
-        print("COEF_POS: %s" % coef_pos)
+        # print("ERR_POS: %s" % err_pos)
+        # print("COEF_POS: %s" % coef_pos)
         # Obliczenie errata locator polynomial do korekcji error i erasures
         err_loc = self.find_errata_locator(coef_pos)
         # Obliczenie errata evaluator polynomial
@@ -351,7 +353,7 @@ class RS:
         for i in range(0, len(coef_pos)):
             l = 255 - coef_pos[i]
             X.append(gf_pow(2, -l))
-        print("X: %s" % X)
+        # print("X: %s" % X)
 
         # Algorytm Forneya, obliczamy error magnitude polynomial
         E = [0] * (len(msg_in))  # E bedzie naszym wielomianem potrzebnym do korekcji, ktorego bedziemy odejmowac od wiadomosci
@@ -489,11 +491,11 @@ def generate_errors(msg, t, magnitude, errors_number=0):
         errors_number = int(math.floor(t / magnitude))
     elif errors_number > int(math.floor(t / magnitude)):
         raise ValueError("Errors number illegal value")
-    print("Errors number: %d" % errors_number)
+    # print("Errors number: %d" % errors_number)
 
     max_spacing = int((255 - magnitude) / errors_number)
     min_spacing = int(max_spacing * 0.5)
-    print("Max spacing: %d" % max_spacing)
+    # print("Max spacing: %d" % max_spacing)
     start_position = int(random.randint(0, int(min_spacing * 0.25)))
     for i in range(errors_number):
         for j in range(magnitude):
@@ -506,7 +508,7 @@ def generate_errors(msg, t, magnitude, errors_number=0):
     for i in range(len(msg)):
         if msg[i] != msg_damaged[i]:
             positions.append(i)
-    print("Errors positions: %s Count: %d" % (positions, len(positions)))
+    # print("Errors positions: %s Count: %d" % (positions, len(positions)))
     return msg_damaged, len(positions)
 
 
@@ -521,10 +523,11 @@ def main():
 
     init_tables(0x11d, 2, 8)
     rs = RS()
+    start = time.time()
     encoded = rs.encode(info_in_unicode)
     print("Encoded:         %s" % encoded)
 
-    encoded_damaged, damaged_symbols_number = generate_errors(encoded, rs.t, 10, 1)
+    encoded_damaged, damaged_symbols_number = generate_errors(encoded, rs.t, 12, 1)
     print("Encoded damaged: %s" % encoded_damaged)
     print("Info: %s" % ''.join([chr(x) for x in encoded_damaged[:rs.k]]))
     decoded_simple = rs.decode_simple(encoded_damaged)
@@ -538,6 +541,26 @@ def main():
     print("Info: %s" % ''.join([chr(x) for x in decoded]))
     print("Encoded == Decoded: %s" % (encoded == decoded))
     print("Errors percent corrected [EXTENDED]: %s%%" % get_errors_percent_corrected(encoded_damaged, decoded, damaged_symbols_number))
+    end = time.time()
+    print("Time: %f" % (end - start))
+
+    # TESTS
+    # iterations = 500
+    # sum_simple = 0
+    # sum_extended = 0
+    # for i in range(iterations):
+    #     encoded = rs.encode(info_in_unicode)
+    #     encoded_damaged, damaged_symbols_number = generate_errors(encoded, rs.t, 27, 1)
+    #
+    #     decoded_simple = rs.decode_simple(encoded_damaged)
+    #     sum_simple += get_errors_percent_corrected(encoded_damaged, decoded_simple, damaged_symbols_number)
+    #
+    #     decoded = rs.decode(encoded_damaged)
+    #     sum_extended += get_errors_percent_corrected(encoded_damaged, decoded, damaged_symbols_number)
+    #
+    # average_simple = sum_simple / iterations
+    # average_extended = sum_extended / iterations
+    # print("AVG simple: %f\nAVG extended: %f" % (average_simple, average_extended))
 
 
 if __name__ == "__main__":
