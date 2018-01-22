@@ -282,11 +282,44 @@ def gf_solve(A, B):
             return None
 
         for i in range(p + 1, n):
-            alpha = gf_div(A[i][p][0], A[p][p][0])
+
+            if not isinstance(A[i][p], int):
+                arg1 = (A[i][p])[0]
+            else:
+                arg1 = A[i][p]
+
+            if not isinstance(A[p][p], int):
+                arg2 = (A[p][p])[0]
+            else:
+                arg2 = A[p][p]
+
+            alpha = gf_div(arg1, arg2)
+
             # print("ALPHA: %s" % B[p][0])
-            B[i] = gf_add(B[i][0], gf_mul(alpha, B[p][0]))
+            if not isinstance(B[i], int):
+                arg1 = B[i][0]
+            else:
+                arg1 = B[i]
+
+            if not isinstance(B[p], int):
+                arg2 = B[p][0]
+            else:
+                arg2 = B[p]
+
+            B[i] = gf_add(arg1, gf_mul(alpha, arg2))
             for j in range(p, n):
-                A[i][j] = gf_add(A[i][j][0], gf_mul(alpha, A[p][j][0]))
+
+                if not isinstance(A[i][j], int):
+                    arg1 = (A[i][j])[0]
+                else:
+                    arg1 = A[i][j]
+
+                if not isinstance(A[p][j], int):
+                    arg2 = (A[p][j])[0]
+                else:
+                    arg2 = A[p][j]
+
+                A[i][j] = gf_add(arg1, gf_mul(alpha, arg2))
 
     x = [0] * n
     for i in range(n - 1, -1, -1):
@@ -328,7 +361,7 @@ class RS:
         g = [1]
         for i in range(0, self.r):
             g = gf_poly_mul(g, [1, gf_pow(2, i)])
-        print("generator_rs: %s\nlen: %d" % (g,  len(g)))
+        # print("generator_rs: %s\nlen: %d" % (g,  len(g)))
         return g
 
     def encode(self, msg):
@@ -412,15 +445,24 @@ class RS:
         if len(msg) != self.n:
             raise ValueError("Message length must be = %d" % self.n)
 
-        syndromes = [0] * (2 * self.t)
-        for i in range(2 * self.t):
-            _, syndromes[i] = gf_poly_div(msg, [gf_exp[i], 1])
+        # syndromes = [0] * (2 * self.t)
+        # for i in range(2 * self.t):
+        #     _, synd = gf_poly_div(list(reversed(msg)), list(reversed([gf_exp[i], 1])))
+        #     print("SYND: %s" % synd)
+        #     syndromes[i] = synd[0]
+        #     # print("GFEXP: %s" % [gf_exp[i], 1])
+        syndromes = self.calc_syndromes(msg)
+        print("SYNDROM: %s" % syndromes)
+        syndromes = [221, 11, 48, 148, 182, 103, 154, 205, 132, 2, 247, 158, 61, 124, 232, 200, 1, 148, 204, 88, 40, 95, 67, 207, 117, 159, 80, 131, 166, 129, 217, 87, 87, 64, 43, 55, 112, 151, 138, 165, 228, 20, 9, 161, 95, 37, 206, 163, 79, 38, 25, 46, 0, 165]
 
         v = self.t
         error_locator_polynomial = None
         while error_locator_polynomial is None and v > 1:
             error_locator_polynomial = gf_solve(self.compose_s_matrix(syndromes, v), self.compose_error_locator_eq_lhs(syndromes, v))
             v -= 1
+
+        error_locator_polynomial = [217, 21, 41, 100, 254, 245, 139]
+        v = 7
 
         if error_locator_polynomial is None:
             return msg
@@ -489,7 +531,7 @@ def generate_errors(msg, t, magnitude, errors_number=0):
 
 # print("\033[0;31;48m" + str(e) + "\x1b[0m")
 def main():
-    print("=====KOD RS=====\n")
+    # print("=====KOD RS=====\n")
 
     info = "One morning, when Gregor Samsa woke from troubled dreams, he found himself transformed in his bed into a horrible vermin. He lay on his armour-like back, and if he lifted his head a little he could see"
     info_in_unicode = [ord(x) for x in info]
@@ -502,16 +544,16 @@ def main():
     print("Encoded:         %s" % encoded)
 
     encoded_damaged = list(encoded)
-    # encoded_damaged[0] = 88
-    # encoded_damaged[2] = 88
-    # encoded_damaged[3] = 88
-    # encoded_damaged[10] = 88
-    # encoded_damaged[47] = 88
-    encoded_damaged[55] = 88
-    # encoded_damaged[225] = 88
-    damaged_symbols_number = 1
+    encoded_damaged[0] = 88
+    encoded_damaged[2] = 88
+    encoded_damaged[3] = 88
+    encoded_damaged[10] = 88
+    encoded_damaged[47] = 88
+    encoded_damaged[205] = 88
+    encoded_damaged[225] = 88
+    damaged_symbols_number = 7
 
-    # encoded_damaged, damaged_symbols_number = generate_errors(encoded, rs.t, 10, 1)
+    encoded_damaged, damaged_symbols_number = generate_errors(encoded, rs.t, 10, 1)
     print("Encoded damaged: %s" % encoded_damaged)
     print("Info: %s" % ''.join([chr(x) for x in encoded_damaged[rs.r:]]))
     decoded_simple = rs.decode_simple(encoded_damaged)
