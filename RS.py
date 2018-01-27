@@ -542,7 +542,7 @@ def main():
     print("Encoded == Decoded: %s" % (encoded == decoded))
     print("Errors percent corrected [EXTENDED]: %s%%" % get_errors_percent_corrected(encoded_damaged, decoded, damaged_symbols_number))
     end = time.time()
-    print("Time: %f" % (end - start))
+    print("Time: %f s" % (end - start))
 
     # TESTS
     # iterations = 500
